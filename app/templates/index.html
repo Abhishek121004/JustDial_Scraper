@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JustDial Scraper Dashboard</title>
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22a10 10 0 0 1 20 0z"/><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+        <h1>JustDial <span>Scraper</span></h1>
+      </div>
+      <div class="status-indicator">
+        <span class="pulse-dot"></span>
+        <span id="server-status">API Connected</span>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <!-- Left Column: Controls and Status -->
+      <section class="sidebar-column">
+        <!-- Control Card -->
+        <div class="dashboard-card glass-card">
+          <h2>Scraper Controls</h2>
+          <form id="scrape-form" class="controls-form">
+            <div class="form-group">
+              <label for="pincode">6-Digit Pincode</label>
+              <input type="text" id="pincode" name="pincode" placeholder="e.g., 768028" required pattern="^\d{6}$" maxlength="6">
+              <span class="input-helper">Must be exactly 6 digits</span>
+            </div>
+
+            <div class="form-group">
+              <label for="skill">Skill / Business Type</label>
+              <input type="text" id="skill" name="skill" placeholder="e.g., AC Repair" required maxlength="100">
+              <span class="input-helper">e.g., Dentist, Electrician, Plumber</span>
+            </div>
+
+            <div class="form-group">
+              <label for="max-pages">Max Pages to Scrape: <span id="pages-val">3</span></label>
+              <input type="range" id="max-pages" name="max-pages" min="1" max="10" value="3">
+              <div class="range-labels">
+                <span>1 Page</span>
+                <span>10 Pages</span>
+              </div>
+            </div>
+
+            <button type="submit" id="start-btn" class="btn primary-btn">
+              <span class="btn-text">Start Scraping</span>
+              <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+          </form>
+        </div>
+
+        <!-- Active/Latest Job Card -->
+        <div class="dashboard-card glass-card status-card" id="job-status-card" style="display: none;">
+          <h2>Job Tracking</h2>
+          <div class="job-meta">
+            <div class="meta-row">
+              <span class="meta-label">Job ID</span>
+              <span id="job-id" class="meta-value code-value">-</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Target</span>
+              <span id="job-target" class="meta-value">-</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Status</span>
+              <span id="job-status" class="status-badge badge-pending">pending</span>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div id="job-progress" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-stats">
+              <span id="job-pages-scraped">Pages: 0</span>
+              <span id="job-records-found">Found: 0</span>
+            </div>
+          </div>
+
+          <div id="job-error-container" class="error-box" style="display: none;">
+            <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="job-error-msg"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Results Explorer -->
+      <section class="main-column">
+        <div class="dashboard-card glass-card results-card">
+          <div class="results-header">
+            <div class="title-section">
+              <h2>Scraped Listings</h2>
+              <span id="results-count-badge" class="count-badge">0 listings</span>
+            </div>
+            <div class="actions-section">
+              <button id="export-btn" class="btn secondary-btn" disabled>
+                <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Listings Filter Bar -->
+          <div class="filter-bar">
+            <div class="search-box">
+              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="table-search" placeholder="Filter listings by name, phone or category..." disabled>
+            </div>
+          </div>
+
+          <!-- Listings Table Container -->
+          <div class="table-container">
+            <table id="listings-table">
+              <thead>
+                <tr>
+                  <th>Business Name</th>
+                  <th>Phone Number</th>
+                  <th>Rating</th>
+                  <th>Category</th>
+                  <th>Address</th>
+                  <th>Source URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="empty-state-row">
+                  <td colspan="6">
+                    <div class="empty-state">
+                      <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                      <p>No listings loaded. Configure and start a scrape run on the left panel, or search for an existing scrape target below.</p>
+                      <div class="load-previous-inline">
+                        <input type="text" id="prev-pincode" placeholder="Pincode" maxlength="6">
+                        <input type="text" id="prev-skill" placeholder="Skill Name (e.g. AC Repair)">
+                        <button id="load-prev-btn" class="btn primary-btn small-btn">Load Existing</button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Table Pagination -->
+          <div class="pagination-bar" id="pagination-controls" style="display: none;">
+            <button id="prev-page-btn" class="btn icon-btn" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span id="page-indicator">Page 1 of 1</span>
+            <button id="next-page-btn" class="btn icon-btn" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>&copy; 2026 JustDial Scraper. Built using FastAPI &amp; SQLite.</p>
+    </footer>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
