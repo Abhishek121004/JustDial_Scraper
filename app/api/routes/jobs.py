@@ -33,7 +33,13 @@ def start_scrape(
 ):
     service = JobService(db)
     job = service.create_job(request)
-    background_tasks.add_task(service.run_job_sync, job.id, request.max_pages)
+    background_tasks.add_task(
+        service.run_job_sync,
+        job.id,
+        request.max_pages,
+        request.headless,
+        request.proxy_urls,
+    )
     return _job_to_response(job)
 
 

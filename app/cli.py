@@ -22,17 +22,29 @@ def scrape(
     pincode: str = typer.Option(..., "--pincode", help="6-digit pincode"),
     skill: str = typer.Option(..., "--skill", help="Service/skill to search"),
     max_pages: int = typer.Option(settings.max_pages, "--max-pages", help="Max pages to scrape"),
+    headless: bool = typer.Option(
+        settings.headless,
+        "--headless/--headed",
+        help="Run Chromium without opening a visible browser window",
+    ),
     wait: bool = typer.Option(True, "--wait/--no-wait", help="Wait for job completion"),
 ):
     """Start a scrape job and optionally wait for completion."""
     db = _get_db()
     try:
         service = JobService(db)
-        job = service.create_job(ScrapeRequest(pincode=pincode, skill=skill, max_pages=max_pages))
+        job = service.create_job(
+            ScrapeRequest(
+                pincode=pincode,
+                skill=skill,
+                max_pages=max_pages,
+                headless=headless,
+            )
+        )
         typer.echo(f"Created job {job.id}")
 
         if wait:
-            service.run_job_sync(job.id, max_pages)
+            service.run_job_sync(job.id, max_pages, headless)
             job = service.get_job(job.id)
             typer.echo(
                 f"Job {job.id} finished: status={job.status}, records={job.records_found}"
@@ -40,7 +52,7 @@ def scrape(
             if job.error_message:
                 typer.echo(f"Note: {job.error_message}")
         else:
-            service.start_job_async(job.id, max_pages)
+            service.start_job_async(job.id, max_pages, headless)
             typer.echo("Job started in background")
     finally:
         db.close()

@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const pincodeInput = document.getElementById('pincode');
   const skillInput = document.getElementById('skill');
   const maxPagesInput = document.getElementById('max-pages');
+  const headlessInput = document.getElementById('headless');
   const pagesVal = document.getElementById('pages-val');
   const startBtn = document.getElementById('start-btn');
   const startBtnText = startBtn.querySelector('.btn-text');
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pincode = pincodeInput.value.trim();
     const skill = skillInput.value.trim();
     const max_pages = parseInt(maxPagesInput.value);
+    const headless = headlessInput.checked;
 
     // Reset UI and State
     if (state.pollIntervalId) {
@@ -85,12 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await fetch('/api/v1/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pincode, skill, max_pages })
+        body: JSON.stringify({ pincode, skill, max_pages, headless })
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Failed to start scraping');
+        const message = await parseErrorResponse(response);
+        throw new Error(message || 'Failed to start scraping');
       }
 
       const job = await response.json();
@@ -331,12 +333,14 @@ document.addEventListener('DOMContentLoaded', () => {
       pincodeInput.disabled = true;
       skillInput.disabled = true;
       maxPagesInput.disabled = true;
+      headlessInput.disabled = true;
     } else {
       startBtn.disabled = false;
       startBtnText.textContent = 'Start Scraping';
       pincodeInput.disabled = false;
       skillInput.disabled = false;
       maxPagesInput.disabled = false;
+      headlessInput.disabled = false;
     }
   }
 
@@ -398,6 +402,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(err => {
       console.error('Clipboard copy failed:', err);
     });
+  }
+
+  // API error helper
+  async function parseErrorResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        const err = await response.json();
+        if (Array.isArray(err.detail)) {
+          return err.detail.map(item => item.msg || JSON.stringify(item)).join(', ');
+        }
+        return err.detail || err.message || `Request failed (${response.status})`;
+      } catch (error) {
+        return `Request failed (${response.status})`;
+      }
+    }
+
+    const text = await response.text();
+    return text || `Request failed (${response.status})`;
   }
 
   // Escape HTML helper

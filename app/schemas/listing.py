@@ -31,6 +31,10 @@ class ScrapeRequest(BaseModel):
     pincode: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
     skill: str = Field(..., min_length=1, max_length=255)
     max_pages: int | None = Field(default=None, ge=1, le=100)
+    headless: bool = False
+    # Optional per-request proxy list. Overrides the global PROXY_LIST config.
+    # Format: ["http://user:pass@host:port", "socks5://user:pass@host:port"]
+    proxy_urls: list[str] | None = None
 
 
 class JobResponse(BaseModel):

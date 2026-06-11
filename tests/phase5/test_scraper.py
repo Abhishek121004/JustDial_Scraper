@@ -93,3 +93,24 @@ class TestScraperService:
         service.run("768028", "AC Repair", max_pages=1)
 
         mock_parse.assert_called()
+
+    @patch.object(ScraperService, "_search_on_homepage")
+    @patch("playwright.sync_api.sync_playwright")
+    def test_run_headless_override_reaches_browser_launch(self, mock_playwright, mock_search):
+        mock_search.return_value = ("<html><body></body></html>", "ok", "http://example.com")
+
+        page = MagicMock()
+        browser = MagicMock()
+        context = MagicMock()
+        context.new_page.return_value = page
+        browser.new_context.return_value = context
+
+        playwright_instance = MagicMock()
+        playwright_instance.chromium.launch.return_value = browser
+        mock_playwright.return_value.__enter__.return_value = playwright_instance
+
+        service = ScraperService(headless=False, retry_count=0, scroll_count=0)
+        service.run("768028", "AC Repair", max_pages=1, headless=True)
+
+        launch_kwargs = playwright_instance.chromium.launch.call_args.kwargs
+        assert launch_kwargs["headless"] is True

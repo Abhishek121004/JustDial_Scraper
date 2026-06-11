@@ -40,12 +40,50 @@ def _parse_phone(encoded_text: str) -> tuple[str, str | None, bool]:
     return "", raw if raw else None, bool(raw)
 
 
+import json
+
 def parse_listings(html: str, source_url: str) -> list[RawListing]:
     """Parse business listings from a JustDial results page HTML."""
+
+    try:
+        payload = json.loads(html)
+
+        results = payload.get("results", {})
+        columns = results.get("columns", [])
+        rows = results.get("data", [])
+
+        if columns and rows:
+            col_map = {name: idx for idx, name in enumerate(columns)}
+
+            listings = []
+
+            for row in rows:
+                listings.append(
+                    RawListing(
+                        name=str(row[col_map["name"]]) if "name" in col_map else "",
+                        phone=str(row[col_map["vn"]]) if "vn" in col_map else "",
+                        email="",
+                        address=str(row[col_map["addr"]]) if "addr" in col_map else "",
+                        rating=str(row[col_map["rating"]]) if "rating" in col_map else "",
+                        reviews=str(row[col_map["reviews"]]) if "reviews" in col_map else "",
+                        category="",
+                        source_url=source_url,
+                        raw_encoded_phone=None,
+                        needs_click_fallback=False,
+                    )
+                )
+
+            print("JSON listings found:", len(listings))
+            return listings
+
+    except Exception:
+        pass
+    
     soup = BeautifulSoup(html, "lxml")
     cards = soup.select(CARD_SELECTOR)
     if not cards:
         cards = soup.select("[data-id], .cntanr")
+    print("Cards found:", len(cards))
 
     listings: list[RawListing] = []
     for card in cards:

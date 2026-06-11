@@ -45,11 +45,12 @@ def test_post_scrape_returns_job_id(client, mock_scraper):
 
         response = client.post(
             "/api/v1/scrape",
-            json={"pincode": "768028", "skill": "AC Repair", "max_pages": 3},
+            json={"pincode": "768028", "skill": "AC Repair", "max_pages": 3, "headless": True},
         )
 
     assert response.status_code == 202
     assert response.json()["job_id"] == "job-123"
+    mock_service.run_job_sync.assert_called_once_with("job-123", 3, True, None)
 
 
 def test_get_job_not_found(client):
@@ -89,15 +90,44 @@ def test_invalid_pincode_returns_422(client):
     assert response.status_code == 422
 
 
+def test_post_scrape_defaults_to_headed(client, mock_scraper):
+    with patch("app.api.routes.jobs.JobService") as mock_service_cls:
+        mock_service = MagicMock()
+        mock_job = MagicMock()
+        mock_job.id = "job-123"
+        mock_job.status = "pending"
+        mock_job.pincode = "768028"
+        mock_job.skill = "AC Repair"
+        mock_job.pages_scraped = 0
+        mock_job.records_found = 0
+        mock_job.error_message = None
+        mock_job.created_at = None
+        mock_job.finished_at = None
+        mock_service.create_job.return_value = mock_job
+        mock_service_cls.return_value = mock_service
+
+        response = client.post(
+            "/api/v1/scrape",
+            json={"pincode": "768028", "skill": "AC Repair", "max_pages": 1},
+        )
+
+    assert response.status_code == 202
+    mock_service.run_job_sync.assert_called_once_with("job-123", 1, False, None)
+
+
 def test_cli_scrape(db_session, mock_scraper, monkeypatch):
     monkeypatch.setattr("app.cli.SessionLocal", lambda: db_session)
     monkeypatch.setattr("app.cli.init_db", lambda: None)
     monkeypatch.setattr("app.cli.JobService", lambda db, scraper=None: JobService(db, mock_scraper))
 
     runner = CliRunner()
-    result = runner.invoke(cli, ["scrape", "--pincode", "768028", "--skill", "AC Repair"])
+    result = runner.invoke(
+        cli,
+        ["scrape", "--pincode", "768028", "--skill", "AC Repair", "--headless"],
+    )
     assert result.exit_code == 0
     assert "finished" in result.stdout.lower() or "Created job" in result.stdout
+    assert mock_scraper.run.call_args.kwargs["headless"] is True
 
 
 def test_cli_export(db_session, mock_scraper, tmp_path, monkeypatch):

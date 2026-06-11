@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=fix-start-error-1">
 </head>
 <body>
   <div class="app-container">
@@ -52,6 +52,11 @@
                 <span>10 Pages</span>
               </div>
             </div>
+
+            <label class="checkbox-row" for="headless">
+              <input type="checkbox" id="headless" name="headless">
+              <span>Headless mode</span>
+            </label>
 
             <button type="submit" id="start-btn" class="btn primary-btn">
               <span class="btn-text">Start Scraping</span>
@@ -170,6 +175,6 @@
     </footer>
   </div>
 
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=fix-start-error-1"></script>
 </body>
 </html>

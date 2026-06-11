@@ -12,6 +12,7 @@ from app.config import settings
 from app.db.models import JobStatus, Listing, ScrapeJob
 from app.schemas.listing import ListingCreate, ScrapeRequest
 from app.services.cleaner import clean_listing
+from app.services.location import address_matches_pincode
 from app.services.csv_export import export_listings
 from app.services.exceptions import CaptchaError, PageLoadError
 from app.services.scraper import ScraperService
@@ -37,29 +38,57 @@ class JobService:
         self.db.refresh(job)
         return job
 
+    def _make_scraper(self, proxy_urls: list[str] | None = None) -> ScraperService:
+        """Build a ScraperService, injecting per-request proxies if supplied."""
+        return ScraperService(proxy_urls=proxy_urls or [])
+
     def get_job(self, job_id: str) -> ScrapeJob | None:
         return self.db.get(ScrapeJob, job_id)
 
-    def start_job_async(self, job_id: str, max_pages: int | None = None) -> None:
-        _executor.submit(self._run_job, job_id, max_pages)
+    def start_job_async(
+        self,
+        job_id: str,
+        max_pages: int | None = None,
+        headless: bool | None = None,
+        proxy_urls: list[str] | None = None,
+    ) -> None:
+        _executor.submit(self._run_job, job_id, max_pages, headless, proxy_urls)
 
-    def run_job_sync(self, job_id: str, max_pages: int | None = None) -> ScrapeJob:
-        self._execute_job(job_id, max_pages)
+    def run_job_sync(
+        self,
+        job_id: str,
+        max_pages: int | None = None,
+        headless: bool | None = None,
+        proxy_urls: list[str] | None = None,
+    ) -> ScrapeJob:
+        self._execute_job(job_id, max_pages, headless, proxy_urls)
         job = self.get_job(job_id)
         assert job is not None
         return job
 
-    def _run_job(self, job_id: str, max_pages: int | None) -> None:
+    def _run_job(
+        self,
+        job_id: str,
+        max_pages: int | None,
+        headless: bool | None,
+        proxy_urls: list[str] | None = None,
+    ) -> None:
         from app.db.session import SessionLocal
 
         db = SessionLocal()
         try:
             service = JobService(db, self.scraper)
-            service._execute_job(job_id, max_pages)
+            service._execute_job(job_id, max_pages, headless, proxy_urls)
         finally:
             db.close()
 
-    def _execute_job(self, job_id: str, max_pages: int | None) -> None:
+    def _execute_job(
+        self,
+        job_id: str,
+        max_pages: int | None,
+        headless: bool | None = None,
+        proxy_urls: list[str] | None = None,
+    ) -> None:
         job = self.get_job(job_id)
         if job is None:
             return
@@ -70,16 +99,29 @@ class JobService:
         max_pages = max_pages or settings.max_pages
         inserted = 0
 
+        # Use a fresh scraper with per-request proxies if provided
+        scraper = self._make_scraper(proxy_urls) if proxy_urls else self.scraper
+
         try:
-            result = self.scraper.run(
+            result = scraper.run(
                 pincode=job.pincode,
                 skill=job.skill,
                 max_pages=max_pages,
                 job_id=job.id,
+                headless=headless,
             )
 
             cleaned = [clean_listing(raw) for raw in result.listings]
-            inserted = self._persist_listings(job, cleaned)
+            # Optionally filter listings by whether the address matches the job pincode's city
+            if settings.location_filter_enabled:
+                filtered = [c for c in cleaned if address_matches_pincode(c.address, job.pincode)]
+                dropped = len(cleaned) - len(filtered)
+                if dropped:
+                    logger.info("job=%s dropped=%s listings_not_matching_pincode", job.id, dropped)
+            else:
+                filtered = cleaned
+
+            inserted = self._persist_listings(job, filtered)
 
             job.pages_scraped = result.pages_scraped
             job.records_found = inserted
@@ -94,7 +136,8 @@ class JobService:
                 job.status = JobStatus.COMPLETED.value
 
             if cleaned:
-                export_listings(settings.output_dir, job.skill, job.pincode, cleaned)
+                # export filtered results (those persisted)
+                export_listings(settings.output_dir, job.skill, job.pincode, filtered)
 
             job.finished_at = datetime.now(timezone.utc)
             self.db.commit()
